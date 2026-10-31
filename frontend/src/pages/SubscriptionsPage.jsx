@@ -18,7 +18,8 @@ import {
   Layers,
   Calendar,
   Building2,
-  Tag
+  Tag,
+  FileText
 } from 'lucide-react';
 import api from '../api/client';
 
@@ -57,6 +58,16 @@ export const SubscriptionsPage = () => {
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     fetchSubscriptions();
+  };
+
+  const handleGenerateInvoice = async (id, num) => {
+    try {
+      const res = await api.post(`/subscriptions/${id}/generate-invoice`);
+      toast.success(res.data.message || `Invoice ${res.data.invoiceNumber} generated!`);
+      fetchSubscriptions();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to generate invoice');
+    }
   };
 
   const handlePause = async (id, num) => {
@@ -251,6 +262,17 @@ export const SubscriptionsPage = () => {
 
                     <td className="py-4 px-4 text-center">
                       <div className="flex items-center justify-center gap-1.5">
+                        {/* Generate On-Demand Invoice */}
+                        {['Active', 'Confirmed'].includes(sub.status) && (
+                          <button
+                            onClick={() => handleGenerateInvoice(sub.id, sub.subscription_number)}
+                            title="Generate Next Recurring Invoice"
+                            className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors"
+                          >
+                            <FileText className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+
                         {/* Pause / Resume */}
                         {sub.status === 'Active' && sub.can_pause === 1 && (
                           <button
@@ -368,7 +390,7 @@ export const SubscriptionsPage = () => {
                 </div>
               )}
               <div className="flex justify-between text-slate-600">
-                <span>Taxes (GST 18%):</span>
+                <span>Taxes (GST):</span>
                 <span className="font-semibold text-slate-800">₹{Number(selectedSub.tax_amount).toLocaleString()}</span>
               </div>
               <div className="flex justify-between font-black text-sm text-slate-900 pt-2 border-t border-slate-200">

@@ -1,4 +1,4 @@
-import { run, get, query } from '../config/db.js';
+import { run, get, query, getNextSequenceNumber } from '../config/db.js';
 
 export const getPayments = async (req, res) => {
   try {
@@ -47,8 +47,8 @@ export const recordPayment = async (req, res) => {
       transaction_ref
     } = req.body;
 
-    if (!invoice_id || amount === undefined) {
-      return res.status(400).json({ error: 'Invoice ID and amount are required.' });
+    if (!invoice_id || amount === undefined || Number(amount) <= 0) {
+      return res.status(400).json({ error: 'Invoice ID and a positive payment amount are required.' });
     }
 
     const invoice = await get(`SELECT * FROM invoices WHERE id = ?;`, [invoice_id]);
@@ -59,10 +59,46 @@ export const recordPayment = async (req, res) => {
       return res.status(403).json({ error: 'Unauthorized to pay for this invoice.' });
     }
 
-    const countRow = await get(`SELECT COUNT(*) as count FROM payments;`);
-    const payNumber = `PAY-${new Date().getFullYear()}-${String(countRow.count + 1).padStart(4, '0')}`;
-    const today = new Date().toISOString().split('T')[0];
-    const generatedRef = transaction_ref || `TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 8999 + 1000)}`;
+    // Check if invoice is already settled
+    if (invoice.status === 'Paid') {
+      return res.status(400).json({ error: `Invoice ${invoice.invoice_number} is already fully paid.` });
+    }
+
+    if (invoice.status === 'Cancelled') {
+      return res.status(400).json({ error: `Cannot record payment for cancelled invoice ${invoice.invoice_number}.` });
+    }
+
+    // Check existing settled payments for this invoice
+    const existingPayments = await get(
+      `SELECT COALESCE(SUM(amount), 0) as paid FROM payments WHERE invoice_id = ? AND status = 'Success';`,
+      [invoice.id]
+    );
+    const totalPaidBefore = Number(existingPayments?.paid || 0);
+    const outstanding = Math.max(0, invoice.total_amount - totalPaidBefore);
+
+    if (outstanding <= 0.01) {
+      // Mark as Paid if not already
+      await run(`UPDATE invoices SET status = 'Paid' WHERE id = ?;`, [invoice.id]);
+      return res.status(400).json({ error: `Invoice ${invoice.invoice_number} has zero remaining balance.` });
+    }
+
+    // Amount to apply (cannot exceed outstanding balance)
+    const paymentAmount = Math.min(Number(amount), outstanding);
+
+    // Normalize payment method to meet schema CHECK constraint
+    const METHOD_MAP = {
+      'credit_card': 'Credit Card',
+      'credit card': 'Credit Card',
+      'debit_card': 'Debit Card',
+      'debit card': 'Debit Card',
+      'upi': 'UPI',
+      'net_banking': 'Net Banking',
+      'net banking': 'Net Banking',
+      'bank_transfer': 'Bank Transfer',
+      'bank transfer': 'Bank Transfer',
+      'cash': 'Cash'
+    };
+    const normalizedMethod = METHOD_MAP[String(payment_method).toLowerCase().trim()] || 'UPI';
 
     const payRes = await run(
       `INSERT INTO payments (
@@ -72,7 +108,13 @@ export const recordPayment = async (req, res) => {
         payNumber,
         invoice.id,
         invoice.customer_id,
-        Number(amount),
+        paymentAmount,
+        normalizedMethod,
+        today,
+        notes || `Payment for ${invoice.invoice_number}`,
+        generatedRef
+      ]
+    );
         payment_method,
         today,
         notes || `Payment for ${invoice.invoice_number}`,
@@ -80,26 +122,35 @@ export const recordPayment = async (req, res) => {
       ]
     );
 
-    // Update invoice status to 'Paid'
-    await run(`UPDATE invoices SET status = 'Paid' WHERE id = ?;`, [invoice.id]);
+    // If fully paid, update invoice status
+    const newTotalPaid = totalPaidBefore + paymentAmount;
+    if (newTotalPaid >= invoice.total_amount - 0.01) {
+      await run(`UPDATE invoices SET status = 'Paid' WHERE id = ?;`, [invoice.id]);
+    }
 
-    // Also update parent subscription status to Active if it was Confirmed
-    await run(`UPDATE subscriptions SET status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE id = ?;`, [invoice.subscription_id]);
+    // Activate parent subscription if it was Confirmed
+    await run(
+      `UPDATE subscriptions SET status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'Confirmed';`,
+      [invoice.subscription_id]
+    );
 
     res.status(201).json({
-      message: 'Payment recorded successfully! Invoice has been marked as Paid.',
+      message: newTotalPaid >= invoice.total_amount - 0.01
+        ? `Payment recorded successfully! Invoice ${invoice.invoice_number} is now marked as Paid.`
+        : `Partial payment of ₹${paymentAmount.toLocaleString()} recorded. Remaining balance: ₹${(invoice.total_amount - newTotalPaid).toLocaleString()}.`,
       payment: {
         id: payRes.id,
         paymentNumber: payNumber,
         invoiceNumber: invoice.invoice_number,
-        amount: Number(amount),
+        amount: paymentAmount,
         method: payment_method,
         transactionRef: generatedRef,
-        date: today
+        date: today,
+        remainingBalance: Math.max(0, invoice.total_amount - newTotalPaid)
       }
     });
   } catch (err) {
-    console.error(err);
+    console.error('Payment error:', err);
     res.status(500).json({ error: 'Failed to record payment.' });
   }
 };

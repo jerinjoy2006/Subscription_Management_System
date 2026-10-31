@@ -1,4 +1,4 @@
-import { run, get, query } from '../config/db.js';
+import { run, get, query, getNextSequenceNumber } from '../config/db.js';
 import { getNextBillingDate } from '../services/billingEngine.js';
 
 export const getSubscriptions = async (req, res) => {
@@ -144,27 +144,27 @@ export const createSubscription = async (req, res) => {
       });
     }
 
-    const countRow = await get(`SELECT COUNT(*) as count FROM subscriptions;`);
-    const subNumber = `SUB-${new Date().getFullYear()}-${String(countRow.count + 1).padStart(3, '0')}`;
+    // Generate collision-proof subscription number
+    const subNumber = await getNextSequenceNumber('SUB', 'subscriptions', 'subscription_number', 3);
 
     const effectiveInterval = billing_interval || plan.billing_interval;
     const effectiveStart = start_date || new Date().toISOString().split('T')[0];
 
-    // Compute expiry (1 year default)
+    // Compute expiry (1 year default or cadence-based horizon)
     const expDate = new Date(effectiveStart);
     expDate.setFullYear(expDate.getFullYear() + 1);
     const expiry_date = expDate.toISOString().split('T')[0];
 
-    // Calculate line items subtotal and tax
+    // Calculate line items subtotal and weighted tax rate
     let subtotal = 0;
-    let taxAmount = 0;
+    let rawTaxSum = 0;
     for (const it of items) {
       const lineSub = Number(it.quantity) * Number(it.unit_price);
       subtotal += lineSub;
-      taxAmount += (lineSub * Number(it.tax_rate || 0)) / 100;
+      rawTaxSum += (lineSub * Number(it.tax_rate || 0)) / 100;
     }
 
-    // Check discount
+    // Check discount eligibility
     let discountId = null;
     let discountAmount = 0;
     if (discount_code) {
@@ -179,7 +179,11 @@ export const createSubscription = async (req, res) => {
       }
     }
 
-    const totalAmount = Math.max(0, subtotal - discountAmount + taxAmount);
+    // Tax is calculated on taxable amount after discounts (statutory GST rules)
+    const taxableAmount = Math.max(0, subtotal - discountAmount);
+    const effectiveTaxRate = subtotal > 0 ? (rawTaxSum / subtotal) : 0;
+    const taxAmount = Math.round(taxableAmount * effectiveTaxRate * 100) / 100;
+    const totalAmount = Math.max(0, Math.round((taxableAmount + taxAmount) * 100) / 100);
 
     const subRes = await run(
       `INSERT INTO subscriptions (
@@ -206,6 +210,7 @@ export const createSubscription = async (req, res) => {
       ]
     );
 
+    // Save line items
     for (const it of items) {
       const lineTotal = Number(it.quantity) * Number(it.unit_price);
       await run(
@@ -215,10 +220,51 @@ export const createSubscription = async (req, res) => {
       );
     }
 
+    // Automatically generate the initial invoice for immediate settlement
+    const periodEnd = getNextBillingDate(effectiveStart, effectiveInterval);
+    const invNumber = await getNextSequenceNumber('INV', 'invoices', 'invoice_number', 4);
+
+    let daysToAdd = 15;
+    if (payment_terms === 'Immediate') daysToAdd = 0;
+    else if (payment_terms === 'Net 30') daysToAdd = 30;
+
+    const dueDateObj = new Date(effectiveStart);
+    dueDateObj.setDate(dueDateObj.getDate() + daysToAdd);
+    const dueDate = dueDateObj.toISOString().split('T')[0];
+
+    const invRes = await run(
+      `INSERT INTO invoices (
+        invoice_number, subscription_id, customer_id, issue_date, due_date,
+        billing_period_start, billing_period_end, subtotal, tax_amount, discount_amount,
+        total_amount, status, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Confirmed', ?);`,
+      [
+        invNumber, subRes.id, targetCustomerId, effectiveStart, dueDate,
+        effectiveStart, periodEnd, subtotal, taxAmount, discountAmount,
+        totalAmount, `Initial invoice for ${subNumber}`
+      ]
+    );
+
+    for (const it of items) {
+      const p = await get(`SELECT name FROM products WHERE id = ?;`, [it.product_id]);
+      let vName = null;
+      if (it.variant_id) {
+        const v = await get(`SELECT variant_name FROM product_variants WHERE id = ?;`, [it.variant_id]);
+        vName = v?.variant_name || null;
+      }
+      await run(
+        `INSERT INTO invoice_items (invoice_id, product_id, product_name, variant_name, quantity, unit_price, tax_rate, line_total)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+        [invRes.id, it.product_id, p?.name || 'Product', vName, it.quantity, it.unit_price, it.tax_rate || 0, Number(it.quantity) * Number(it.unit_price)]
+      );
+    }
+
     res.status(201).json({
-      message: 'Subscription created successfully',
+      message: 'Subscription created successfully and initial invoice generated.',
       subscriptionId: subRes.id,
-      subscriptionNumber: subNumber
+      subscriptionNumber: subNumber,
+      invoiceId: invRes.id,
+      invoiceNumber: invNumber
     });
   } catch (err) {
     console.error(err);
@@ -245,7 +291,19 @@ export const pauseSubscription = async (req, res) => {
   try {
     const sub = await get(`SELECT * FROM subscriptions WHERE id = ?;`, [req.params.id]);
     if (!sub) return res.status(404).json({ error: 'Subscription not found.' });
+
+    // Isolation check: customer can only pause their own subscription
+    if (req.user && req.user.role === 'customer' && sub.customer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to modify this subscription.' });
+    }
+
     if (sub.status !== 'Active') return res.status(400).json({ error: 'Only Active subscriptions can be paused.' });
+
+    // Check plan governance
+    const plan = await get(`SELECT can_pause FROM plans WHERE id = ?;`, [sub.plan_id]);
+    if (plan && plan.can_pause === 0) {
+      return res.status(400).json({ error: 'This subscription plan does not permit pausing.' });
+    }
 
     await run(`UPDATE subscriptions SET status = 'Paused', updated_at = CURRENT_TIMESTAMP WHERE id = ?;`, [req.params.id]);
     res.json({ message: 'Subscription paused successfully.' });
@@ -258,9 +316,25 @@ export const resumeSubscription = async (req, res) => {
   try {
     const sub = await get(`SELECT * FROM subscriptions WHERE id = ?;`, [req.params.id]);
     if (!sub) return res.status(404).json({ error: 'Subscription not found.' });
+
+    // Isolation check
+    if (req.user && req.user.role === 'customer' && sub.customer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to modify this subscription.' });
+    }
+
     if (sub.status !== 'Paused') return res.status(400).json({ error: 'Only Paused subscriptions can be resumed.' });
 
-    await run(`UPDATE subscriptions SET status = 'Active', updated_at = CURRENT_TIMESTAMP WHERE id = ?;`, [req.params.id]);
+    // If next billing date was in the past while paused, reset to today
+    const today = new Date().toISOString().split('T')[0];
+    let nextBilling = sub.next_billing_date;
+    if (sub.next_billing_date && sub.next_billing_date < today) {
+      nextBilling = today;
+    }
+
+    await run(
+      `UPDATE subscriptions SET status = 'Active', next_billing_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;`,
+      [nextBilling, req.params.id]
+    );
     res.json({ message: 'Subscription resumed successfully.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to resume subscription.' });
@@ -272,9 +346,36 @@ export const renewSubscription = async (req, res) => {
     const sub = await get(`SELECT * FROM subscriptions WHERE id = ?;`, [req.params.id]);
     if (!sub) return res.status(404).json({ error: 'Subscription not found.' });
 
-    // Extend expiry date by 1 year from current expiry or today
+    // Isolation check
+    if (req.user && req.user.role === 'customer' && sub.customer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to modify this subscription.' });
+    }
+
+    // Check plan governance
+    const plan = await get(`SELECT can_renew, billing_interval FROM plans WHERE id = ?;`, [sub.plan_id]);
+    if (plan && plan.can_renew === 0) {
+      return res.status(400).json({ error: 'This subscription plan does not permit renewals.' });
+    }
+
+    // Cadence-aware extension
     const currentExp = sub.expiry_date ? new Date(sub.expiry_date) : new Date();
-    currentExp.setFullYear(currentExp.getFullYear() + 1);
+    const interval = sub.billing_interval || plan?.billing_interval || 'monthly';
+    switch (interval.toLowerCase()) {
+      case 'daily':
+        currentExp.setDate(currentExp.getDate() + 30);
+        break;
+      case 'weekly':
+        currentExp.setDate(currentExp.getDate() + 28);
+        break;
+      case 'monthly':
+        currentExp.setMonth(currentExp.getMonth() + 1);
+        break;
+      case 'yearly':
+        currentExp.setFullYear(currentExp.getFullYear() + 1);
+        break;
+      default:
+        currentExp.setFullYear(currentExp.getFullYear() + 1);
+    }
     const newExpiry = currentExp.toISOString().split('T')[0];
 
     await run(
@@ -294,10 +395,100 @@ export const renewSubscription = async (req, res) => {
 
 export const closeSubscription = async (req, res) => {
   try {
+    const sub = await get(`SELECT * FROM subscriptions WHERE id = ?;`, [req.params.id]);
+    if (!sub) return res.status(404).json({ error: 'Subscription not found.' });
+
+    // Isolation check
+    if (req.user && req.user.role === 'customer' && sub.customer_id !== req.user.id) {
+      return res.status(403).json({ error: 'Unauthorized to modify this subscription.' });
+    }
+
+    // Check plan governance for customers
+    if (req.user && req.user.role === 'customer') {
+      const plan = await get(`SELECT can_close_early FROM plans WHERE id = ?;`, [sub.plan_id]);
+      if (plan && plan.can_close_early === 0) {
+        return res.status(400).json({ error: 'This plan does not permit early cancellation by customers. Please contact staff.' });
+      }
+    }
+
     await run(`UPDATE subscriptions SET status = 'Closed', updated_at = CURRENT_TIMESTAMP WHERE id = ?;`, [req.params.id]);
     res.json({ message: 'Subscription closed.' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to close subscription.' });
+  }
+};
+
+export const generateInvoiceForSubscription = async (req, res) => {
+  try {
+    const sub = await get(`SELECT * FROM subscriptions WHERE id = ?;`, [req.params.id]);
+    if (!sub) return res.status(404).json({ error: 'Subscription not found.' });
+    if (sub.status === 'Closed') return res.status(400).json({ error: 'Cannot invoice a closed subscription.' });
+
+    const periodStart = sub.next_billing_date || new Date().toISOString().split('T')[0];
+    const periodEnd = getNextBillingDate(periodStart, sub.billing_interval);
+
+    // Duplicate billing prevention check
+    const existingInvoice = await get(
+      `SELECT id, invoice_number FROM invoices WHERE subscription_id = ? AND billing_period_start = ? AND status != 'Cancelled' LIMIT 1;`,
+      [sub.id, periodStart]
+    );
+    if (existingInvoice) {
+      return res.status(400).json({
+        error: `An active invoice (${existingInvoice.invoice_number}) already exists for period starting ${periodStart}.`
+      });
+    }
+
+    let daysToAdd = 15;
+    if (sub.payment_terms === 'Immediate') daysToAdd = 0;
+    else if (sub.payment_terms === 'Net 30') daysToAdd = 30;
+
+    const dueDateObj = new Date(periodStart);
+    dueDateObj.setDate(dueDateObj.getDate() + daysToAdd);
+    const dueDate = dueDateObj.toISOString().split('T')[0];
+
+    const items = await query(
+      `SELECT si.*, p.name as product_name, pv.variant_name
+       FROM subscription_items si
+       JOIN products p ON si.product_id = p.id
+       LEFT JOIN product_variants pv ON si.variant_id = pv.id
+       WHERE si.subscription_id = ?;`,
+      [sub.id]
+    );
+
+    const invNum = await getNextSequenceNumber('INV', 'invoices', 'invoice_number', 4);
+    const invRes = await run(
+      `INSERT INTO invoices (
+        invoice_number, subscription_id, customer_id, issue_date, due_date,
+        billing_period_start, billing_period_end, subtotal, tax_amount, discount_amount,
+        total_amount, status, notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Confirmed', ?);`,
+      [
+        invNum, sub.id, sub.customer_id, periodStart, dueDate,
+        periodStart, periodEnd, sub.subtotal, sub.tax_amount, sub.discount_amount,
+        sub.total_amount, `Generated on-demand invoice for ${sub.subscription_number}`
+      ]
+    );
+
+    for (const it of items) {
+      await run(
+        `INSERT INTO invoice_items (
+          invoice_id, product_id, product_name, variant_name, quantity, unit_price, tax_rate, line_total
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
+        [invRes.id, it.product_id, it.product_name, it.variant_name || null, it.quantity, it.unit_price, it.tax_rate, it.line_total]
+      );
+    }
+
+    // Advance subscription next_billing_date
+    await run(`UPDATE subscriptions SET next_billing_date = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?;`, [periodEnd, sub.id]);
+
+    res.status(201).json({
+      message: `Invoice ${invNum} generated successfully.`,
+      invoiceId: invRes.id,
+      invoiceNumber: invNum
+    });
+  } catch (err) {
+    console.error('Generate invoice error:', err);
+    res.status(500).json({ error: 'Failed to generate invoice.' });
   }
 };
 

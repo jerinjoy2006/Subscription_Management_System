@@ -1,4 +1,4 @@
-import { query, get, run } from '../config/db.js';
+import { query, get, run, getNextSequenceNumber } from '../config/db.js';
 
 // Helper to advance date by billing interval
 export const getNextBillingDate = (dateStr, interval) => {
@@ -96,13 +96,13 @@ export const runBillingEngine = async (targetDate = new Date().toISOString().spl
 
     // Calculate line items, taxes, discounts
     let subtotal = 0;
-    let taxAmount = 0;
+    let rawTaxSum = 0;
 
     for (const item of items) {
       const lineBase = item.quantity * item.unit_price;
       subtotal += lineBase;
       const lineTax = (lineBase * (item.tax_rate || 0)) / 100;
-      taxAmount += lineTax;
+      rawTaxSum += lineTax;
     }
 
     // Check discount applicability
@@ -126,15 +126,22 @@ export const runBillingEngine = async (targetDate = new Date().toISOString().spl
       }
     }
 
-    const totalAmount = Math.max(0, subtotal - discountAmount + taxAmount);
+    // Statutory GST: Tax applies to the net taxable base (subtotal minus discount)
+    const taxableBase = Math.max(0, subtotal - discountAmount);
+    const effectiveTaxRate = subtotal > 0 ? (rawTaxSum / subtotal) : 0;
+    const taxAmount = Math.round(taxableBase * effectiveTaxRate * 100) / 100;
+    const totalAmount = Math.max(0, Math.round((taxableBase + taxAmount) * 100) / 100);
 
-    // Create Invoice
-    const invCount = await get(`SELECT COUNT(*) as count FROM invoices;`);
-    const invNum = `INV-${new Date().getFullYear()}-${String(invCount.count + 1).padStart(4, '0')}`;
+    // Create Invoice with collision-proof numbering
+    const invNum = await getNextSequenceNumber('INV', 'invoices', 'invoice_number', 4);
 
-    // Due date standard: 15 days from issue date
+    // Due date calculated according to subscription payment terms
+    let daysToAdd = 15;
+    if (sub.payment_terms === 'Immediate') daysToAdd = 0;
+    else if (sub.payment_terms === 'Net 30') daysToAdd = 30;
+
     const dueDateObj = new Date(periodStart);
-    dueDateObj.setDate(dueDateObj.getDate() + 15);
+    dueDateObj.setDate(dueDateObj.getDate() + daysToAdd);
     const dueDate = dueDateObj.toISOString().split('T')[0];
 
     const invRes = await run(

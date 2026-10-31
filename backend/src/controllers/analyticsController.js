@@ -3,7 +3,8 @@ import { runBillingEngine } from '../services/billingEngine.js';
 
 export const getAnalytics = async (req, res) => {
   try {
-    const data = await getDashboardAnalytics();
+    const { timeFilter } = req.query;
+    const data = await getDashboardAnalytics(timeFilter);
     res.json(data);
   } catch (err) {
     console.error('Analytics error:', err);

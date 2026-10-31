@@ -29,6 +29,7 @@ export const CustomerPortalPage = () => {
   const toast = useToast();
   const [subscriptions, setSubscriptions] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [quotations, setQuotations] = useState([]);
   const [plans, setPlans] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,18 +38,21 @@ export const CustomerPortalPage = () => {
   const [payingInvoice, setPayingInvoice] = useState(null);
   const [showSubscribeModal, setShowSubscribeModal] = useState(false);
   const [selectedPlanForSub, setSelectedPlanForSub] = useState(null);
+  const [convertingQuoteId, setConvertingQuoteId] = useState(null);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [subRes, invRes, planRes, prodRes] = await Promise.all([
+      const [subRes, invRes, quoteRes, planRes, prodRes] = await Promise.all([
         api.get('/subscriptions'),
         api.get('/invoices'),
+        api.get('/quotations'),
         api.get('/plans'),
         api.get('/products')
       ]);
       setSubscriptions(subRes.data.subscriptions || []);
       setInvoices(invRes.data.invoices || []);
+      setQuotations(quoteRes.data.quotations || []);
       setPlans(planRes.data.plans || []);
       setProducts(prodRes.data.products || []);
     } catch (err) {
@@ -93,6 +97,19 @@ export const CustomerPortalPage = () => {
     }
   };
 
+  const handleConvertQuote = async (quoteId, quoteNum) => {
+    try {
+      setConvertingQuoteId(quoteId);
+      const res = await api.post(`/quotations/${quoteId}/convert`);
+      toast.success(res.data.message || `Quotation ${quoteNum} accepted and subscription activated!`);
+      fetchData();
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Failed to convert quotation');
+    } finally {
+      setConvertingQuoteId(null);
+    }
+  };
+
   const pendingInvoices = invoices.filter((i) => i.status === 'Confirmed');
   const activeSubs = subscriptions.filter((s) => s.status === 'Active');
 
@@ -108,10 +125,10 @@ export const CustomerPortalPage = () => {
               <span className="text-[10px] uppercase font-black tracking-widest bg-brand-500/20 text-brand-300 border border-brand-400/30 px-3 py-1 rounded-full">
                 Customer Self-Service Portal
               </span>
-              <span className="text-xs text-indigo-200">Rahul Sharma</span>
+              <span className="text-xs text-indigo-200">{user?.name || 'Account Holder'}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight mt-2 text-white">
-              {user?.company_name || 'Apex Retail Shop'}
+              {user?.company_name || user?.name || 'Customer Account'}
             </h1>
             <p className="text-xs text-indigo-200 mt-1 max-w-xl leading-relaxed">
               Manage your software licenses, pause or renew subscriptions, and pay recurring invoices with automated receipt generation.
@@ -317,6 +334,74 @@ export const CustomerPortalPage = () => {
                           </button>
                         )}
                       </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Section 2.5: My Proposals & Quotations */}
+      <div className="space-y-4 pt-4 border-t border-slate-200">
+        <div className="flex justify-between items-center">
+          <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-indigo-600" /> My Proposals & Custom Quotes
+          </h2>
+          <span className="text-xs font-bold text-slate-400">
+            {quotations.length} proposal(s)
+          </span>
+        </div>
+
+        <div className="bg-white border border-slate-200/90 rounded-2xl overflow-hidden shadow-2xs">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-400 uppercase font-extrabold text-[10px] tracking-wider">
+              <tr>
+                <th className="py-3 px-4">Quote #</th>
+                <th className="py-3 px-4">Plan / Package</th>
+                <th className="py-3 px-3">Valid Until</th>
+                <th className="py-3 px-3 text-right">Estimated Total</th>
+                <th className="py-3 px-3 text-center">Status</th>
+                <th className="py-3 px-4 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {quotations.length === 0 ? (
+                <tr>
+                  <td colSpan="6" className="py-10 text-center text-slate-400">No quotation proposals received yet.</td>
+                </tr>
+              ) : (
+                quotations.map((q) => (
+                  <tr key={q.id} className="hover:bg-slate-50/70">
+                    <td className="py-4 px-4 font-mono font-bold text-slate-900">{q.quotation_number}</td>
+                    <td className="py-4 px-4 font-semibold text-slate-800">{q.plan_name || 'Custom Package'}</td>
+                    <td className="py-4 px-3 font-mono text-slate-600">{q.valid_until}</td>
+                    <td className="py-4 px-3 text-right font-black text-slate-900 text-sm">
+                      ₹{Number(q.total_amount).toLocaleString()}
+                    </td>
+                    <td className="py-4 px-3 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${
+                        q.status === 'converted' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                        q.status === 'sent' ? 'bg-blue-50 text-blue-700 border border-blue-200' :
+                        'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                        {q.status === 'converted' ? 'Converted / Active' : q.status}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      {q.status !== 'converted' ? (
+                        <button
+                          onClick={() => handleConvertQuote(q.id, q.quotation_number)}
+                          disabled={convertingQuoteId === q.id}
+                          className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-2xs transition-colors inline-flex items-center gap-1.5"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          {convertingQuoteId === q.id ? 'Activating...' : 'Accept & Activate'}
+                        </button>
+                      ) : (
+                        <span className="text-[11px] font-semibold text-emerald-600">Contract Active</span>
+                      )}
                     </td>
                   </tr>
                 ))

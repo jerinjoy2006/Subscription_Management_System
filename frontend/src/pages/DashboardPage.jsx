@@ -62,10 +62,10 @@ export const DashboardPage = () => {
   const [runningBilling, setRunningBilling] = useState(false);
   const [timeFilter, setTimeFilter] = useState('All Time');
 
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = async (filter = timeFilter) => {
     try {
       setLoading(true);
-      const res = await api.get('/analytics');
+      const res = await api.get('/analytics', { params: { timeFilter: filter } });
       setData(res.data);
     } catch (err) {
       console.error('Failed to load analytics:', err);
@@ -76,8 +76,8 @@ export const DashboardPage = () => {
   };
 
   useEffect(() => {
-    fetchAnalytics();
-  }, []);
+    fetchAnalytics(timeFilter);
+  }, [timeFilter]);
 
   const handleRunBilling = async () => {
     try {
@@ -247,7 +247,7 @@ export const DashboardPage = () => {
           subtitle={`Annualized ARR: ₹${(metrics.arr || 0).toLocaleString()}`}
           icon={TrendingUp}
           color="indigo"
-          badge="+14.8% MRR"
+          badge={metrics.mrrGrowth !== undefined && metrics.mrrGrowth !== null ? `${metrics.mrrGrowth >= 0 ? '+' : ''}${metrics.mrrGrowth}% MoM` : 'Healthy'}
         />
 
         <StatCard

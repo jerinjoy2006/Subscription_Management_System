@@ -23,10 +23,12 @@ router.post('/auth/reset-password', authCtrl.resetPassword);
 // Authenticated user profile
 router.get('/auth/me', authenticate, authCtrl.getMe);
 
-// Admin-only staff management
+// Admin & Staff customer management
 router.post('/auth/staff', authenticate, authorize(['admin']), authCtrl.createStaff);
 router.get('/auth/staff', authenticate, authorize(['admin']), authCtrl.listStaff);
 router.get('/customers', authenticate, authorize(['admin', 'staff']), authCtrl.listCustomers);
+router.post('/customers', authenticate, authorize(['admin', 'staff']), authCtrl.createCustomer);
+router.get('/customers/:id', authenticate, authorize(['admin', 'staff']), authCtrl.getCustomerById);
 
 // Products & Variants (Public read for customer portal, Admin write)
 router.get('/products', prodCtrl.getProducts);
@@ -53,10 +55,10 @@ router.post('/discounts', authenticate, authorize(['admin']), discCtrl.createDis
 router.put('/discounts/:id', authenticate, authorize(['admin']), discCtrl.updateDiscount);
 router.post('/discounts/validate', authenticate, discCtrl.validateDiscount);
 
-// Quotation Templates & Quotations (Staff/Admin)
+// Quotation Templates & Quotations (Staff/Admin create & convert, Authenticated read)
 router.get('/quotations/templates', authenticate, authorize(['admin', 'staff']), quoteCtrl.getTemplates);
 router.post('/quotations/templates', authenticate, authorize(['admin', 'staff']), quoteCtrl.createTemplate);
-router.get('/quotations', authenticate, authorize(['admin', 'staff']), quoteCtrl.getQuotations);
+router.get('/quotations', authenticate, quoteCtrl.getQuotations);
 router.post('/quotations', authenticate, authorize(['admin', 'staff']), quoteCtrl.createQuotation);
 router.post('/quotations/:id/convert', authenticate, authorize(['admin', 'staff']), quoteCtrl.convertQuotationToSubscription);
 
@@ -69,6 +71,7 @@ router.post('/subscriptions/:id/pause', authenticate, subCtrl.pauseSubscription)
 router.post('/subscriptions/:id/resume', authenticate, subCtrl.resumeSubscription);
 router.post('/subscriptions/:id/renew', authenticate, subCtrl.renewSubscription);
 router.post('/subscriptions/:id/close', authenticate, subCtrl.closeSubscription);
+router.post('/subscriptions/:id/generate-invoice', authenticate, authorize(['admin', 'staff']), subCtrl.generateInvoiceForSubscription);
 
 // Invoices
 router.get('/invoices', authenticate, invCtrl.getInvoices);

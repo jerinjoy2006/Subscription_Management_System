@@ -234,3 +234,82 @@ export const listCustomers = async (req, res) => {
   }
 };
 
+export const createCustomer = async (req, res) => {
+  try {
+    const { name, email, password, company_name, phone } = req.body;
+    if (!name || !email) {
+      return res.status(400).json({ error: 'Customer name and email are required.' });
+    }
+    if (!validateEmail(email)) {
+      return res.status(400).json({ error: 'Invalid email address format.' });
+    }
+    const pwd = password || 'Customer@12345!';
+    const passCheck = validatePassword(pwd);
+    if (!passCheck.valid) {
+      return res.status(400).json({ error: passCheck.message });
+    }
+    const existing = await get(`SELECT id FROM users WHERE email = ?;`, [email.toLowerCase().trim()]);
+    if (existing) {
+      return res.status(400).json({ error: 'An account with this email already exists.' });
+    }
+    const password_hash = await bcrypt.hash(pwd, 10);
+    const result = await run(
+      `INSERT INTO users (name, email, password_hash, role, company_name, phone)
+       VALUES (?, ?, ?, 'customer', ?, ?);`,
+      [name.trim(), email.toLowerCase().trim(), password_hash, company_name?.trim() || null, phone?.trim() || null]
+    );
+
+    res.status(201).json({
+      message: 'Customer account provisioned successfully.',
+      customerId: result.id,
+      customer: {
+        id: result.id,
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        role: 'customer',
+        company_name: company_name?.trim() || null,
+        phone: phone?.trim() || null
+      }
+    });
+  } catch (err) {
+    console.error('Create customer error:', err);
+    res.status(500).json({ error: 'Failed to create customer.' });
+  }
+};
+
+export const getCustomerById = async (req, res) => {
+  try {
+    const customer = await get(
+      `SELECT id, name, email, role, company_name, phone, created_at FROM users WHERE id = ? AND role = 'customer';`,
+      [req.params.id]
+    );
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found.' });
+    }
+    const subscriptions = await query(
+      `SELECT s.*, p.name as plan_name FROM subscriptions s JOIN plans p ON s.plan_id = p.id WHERE s.customer_id = ? ORDER BY s.id DESC;`,
+      [customer.id]
+    );
+    const invoices = await query(
+      `SELECT * FROM invoices WHERE customer_id = ? ORDER BY id DESC;`,
+      [customer.id]
+    );
+    const payments = await query(
+      `SELECT p.*, i.invoice_number FROM payments p JOIN invoices i ON p.invoice_id = i.id WHERE p.customer_id = ? ORDER BY p.id DESC;`,
+      [customer.id]
+    );
+
+    res.json({
+      customer: {
+        ...customer,
+        subscriptions,
+        invoices,
+        payments
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch customer profile.' });
+  }
+};
+
+
