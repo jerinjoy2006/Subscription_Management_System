@@ -87,10 +87,10 @@ export const Navbar = ({ onBillingRunTriggered }) => {
               </div>
             </div>
 
-            {/* Quick Demo Role Switcher for Judges */}
+            {/* Role Perspective Switcher */}
             <div className="hidden lg:flex items-center gap-1 bg-slate-100/90 p-1 rounded-2xl border border-slate-200/90 shadow-2xs">
               <span className="text-[10px] font-extrabold text-slate-400 px-2 uppercase tracking-wider">
-                Demo Switch:
+                Perspective:
               </span>
               <button
                 onClick={() => {
@@ -135,13 +135,13 @@ export const Navbar = ({ onBillingRunTriggered }) => {
 
             {/* Actions & Profile */}
             <div className="flex items-center gap-2.5">
-              {/* Interactive Judge Walkthrough Guide */}
+              {/* Interactive Platform Tour */}
               <button
                 onClick={() => setShowTour(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200/80 hover:bg-amber-100 transition-all shadow-2xs"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 text-indigo-900 border border-indigo-200/80 hover:bg-indigo-100 transition-all shadow-2xs"
               >
-                <Sparkles className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
-                <span className="hidden sm:inline">Judge Guide</span>
+                <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="hidden sm:inline">Platform Tour</span>
               </button>
 
               {/* Trigger Recurring Billing Engine Button */}

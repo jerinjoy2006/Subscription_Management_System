@@ -193,10 +193,10 @@ export const LoginPage = () => {
             </button>
           </form>
 
-          {/* Demo Quick Access */}
+          {/* Test Sandbox Quick Access */}
           <div className="mt-6 pt-5 border-t border-slate-200">
             <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest text-center mb-3">
-              Quick 1-Click Demo Access
+              Fast Sandbox Switch (Testing Accounts)
             </p>
             <div className="grid grid-cols-3 gap-2">
               {[

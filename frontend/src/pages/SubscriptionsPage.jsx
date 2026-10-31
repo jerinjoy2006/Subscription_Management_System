@@ -137,7 +137,7 @@ export const SubscriptionsPage = () => {
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Subscriptions</h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Full Lifecycle Management: Draft ➔ Quotation ➔ Confirmed ➔ Active ➔ Closed
+            Manage recurring software contracts, billing cadences, pauses, and renewals
           </p>
         </div>
 
@@ -150,25 +150,7 @@ export const SubscriptionsPage = () => {
         </button>
       </div>
 
-      {/* Lifecycle Flow Graphic */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs overflow-x-auto">
-        <div className="min-w-[600px] flex items-center justify-between text-xs font-bold text-slate-500">
-          <span className="text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Lifecycle Pipeline:</span>
-          {['Draft', 'Quotation', 'Confirmed', 'Active', 'Closed'].map((stage, idx) => (
-            <React.Fragment key={stage}>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/60">
-                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-[10px]">
-                  {idx + 1}
-                </span>
-                <span className="text-slate-800">{stage}</span>
-              </div>
-              {idx < 4 && <span className="text-slate-300">➔</span>}
-            </React.Fragment>
-          ))}
-        </div>
-      </div>
-
-      {/* Filter and Search Bar */}
+      {/* Filter and Search Bar with Interactive Status Pipeline */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-center justify-between gap-3">
         <form onSubmit={handleSearchSubmit} className="relative w-full md:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -177,24 +159,37 @@ export const SubscriptionsPage = () => {
             placeholder="Search by ID, customer, company..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-hidden"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-hidden font-medium"
           />
         </form>
 
         <div className="flex items-center gap-1.5 w-full md:w-auto overflow-x-auto">
-          <Filter className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-          <span className="text-xs font-bold text-slate-400 uppercase text-[10px] mr-1">Filter:</span>
-          {['', 'Active', 'Confirmed', 'Draft', 'Paused', 'Closed'].map((st) => (
+          {[
+            { key: '', label: 'All', dot: 'bg-slate-400' },
+            { key: 'Active', label: 'Active', dot: 'bg-emerald-500' },
+            { key: 'Confirmed', label: 'Confirmed', dot: 'bg-amber-500' },
+            { key: 'Draft', label: 'Draft', dot: 'bg-slate-400' },
+            { key: 'Paused', label: 'Paused', dot: 'bg-purple-500' },
+            { key: 'Closed', label: 'Closed', dot: 'bg-rose-500' },
+          ].map((tab) => (
             <button
-              key={st}
-              onClick={() => setStatusFilter(st)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
-                statusFilter === st
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
+                statusFilter === tab.key
                   ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 border border-slate-200/60'
               }`}
             >
-              {st || 'All'}
+              <span className={`w-1.5 h-1.5 rounded-full ${tab.dot}`} />
+              <span>{tab.label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                  statusFilter === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200/80 text-slate-600'
+                }`}
+              >
+                {tab.key ? subscriptions.filter((s) => s.status === tab.key).length : subscriptions.length}
+              </span>
             </button>
           ))}
         </div>

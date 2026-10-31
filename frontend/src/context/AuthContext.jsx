@@ -26,7 +26,7 @@ export const AuthProvider = ({ children }) => {
           logout();
         }
       } else {
-        // Auto-login as admin by default for smooth initial hackathon demo if no session
+        // Initialize default sandbox session as admin if no session is stored
         try {
           const res = await api.post('/auth/login', {
             email: DEMO_USERS.admin.email,

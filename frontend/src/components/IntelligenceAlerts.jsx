@@ -30,7 +30,7 @@ export const IntelligenceAlerts = ({ intelligence, onActionClick }) => {
             <div className="flex items-center gap-2">
               <h2 className="text-base font-bold tracking-tight text-white">Subscription Intelligence Engine</h2>
               <span className="text-[10px] uppercase font-bold tracking-widest bg-brand-500/30 text-brand-200 border border-brand-400/40 px-2 py-0.5 rounded-full">
-                AI Standout Feature
+                Predictive Revenue Engine
               </span>
             </div>
             <p className="text-xs text-indigo-200/80">Real-time proactive revenue alerts, renewal forecasting & customer retention insights</p>

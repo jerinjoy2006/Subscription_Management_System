@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -256,7 +256,7 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Subscription Intelligence (Standout Feature from Problem Statement) */}
+      {/* Predictive Subscription Intelligence Engine */}
       <IntelligenceAlerts
         intelligence={intelligence}
         onActionClick={(type) => {

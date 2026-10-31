@@ -95,9 +95,9 @@ export const DemoTourModal = ({ isOpen, onClose, onRunBilling }) => {
               </div>
               <div>
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-300">
-                  Hackathon Evaluation Guide
+                  Interactive Platform Tour
                 </span>
-                <h2 className="text-xl font-black tracking-tight">Brightloop Software Billing Lifecycle</h2>
+                <h2 className="text-xl font-black tracking-tight">SubscriptIQ Core Billing Architecture</h2>
               </div>
             </div>
             <button
@@ -108,7 +108,7 @@ export const DemoTourModal = ({ isOpen, onClose, onRunBilling }) => {
             </button>
           </div>
           <p className="text-xs text-indigo-200 mt-2 leading-relaxed">
-            Follow this 5-step scenario to demonstrate how SubscriptIQ eliminates manual spreadsheets and automates the complete billing lifecycle.
+            Explore the 5 core engines powering Brightloop's end-to-end recurring revenue and billing infrastructure.
           </p>
         </div>
 
@@ -150,12 +150,12 @@ export const DemoTourModal = ({ isOpen, onClose, onRunBilling }) => {
 
         {/* Footer */}
         <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-2">
-          <span>Tip: You can also use the <b>Demo Switch</b> buttons in the top navbar at any time.</span>
+          <span>Tip: Switch between <b>Admin</b>, <b>Staff</b>, and <b>Customer</b> perspectives using the top navigation bar at any time.</span>
           <button
             onClick={onClose}
             className="px-5 py-2 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors shadow-xs"
           >
-            Close Guide
+            Close Tour
           </button>
         </div>
       </div>
