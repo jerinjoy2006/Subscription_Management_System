@@ -1,0 +1,20 @@
+{
+  "name": "subscription-management-system",
+  "version": "1.0.0",
+  "description": "SubscriptIQ - Smart Subscription & Recurring Billing Management Platform for Brightloop Software",
+  "scripts": {
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "seed": "cd backend && npm run seed",
+    "build": "cd frontend && npm run build"
+  },
+  "keywords": [
+    "subscription-management",
+    "billing-engine",
+    "recurring-payments",
+    "mrr-analytics",
+    "brightloop"
+  ],
+  "author": "SubscriptIQ Team",
+  "license": "MIT"
+}
