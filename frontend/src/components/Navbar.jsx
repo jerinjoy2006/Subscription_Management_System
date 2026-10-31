@@ -143,3 +143,4 @@ export const Navbar = ({ onBillingRunTriggered }) => {
     </header>
   );
 };
+

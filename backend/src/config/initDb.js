@@ -297,3 +297,4 @@ export const initializeDatabase = async () => {
 
   console.log('Database tables and indexes successfully created.');
 };
+

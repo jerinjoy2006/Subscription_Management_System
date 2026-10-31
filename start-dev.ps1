@@ -8,3 +8,4 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd frontend; npm 
 
 Write-Host "Application is opening at: http://localhost:3000" -ForegroundColor Green
 Write-Host "Backend API is live at: http://localhost:5000/api/health" -ForegroundColor Green
+

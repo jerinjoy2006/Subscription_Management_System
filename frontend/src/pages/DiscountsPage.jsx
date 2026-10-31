@@ -320,3 +320,4 @@ export const DiscountsPage = () => {
     </div>
   );
 };
+

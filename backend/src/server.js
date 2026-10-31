@@ -44,3 +44,4 @@ seedDatabase()
   .catch((err) => {
     console.error('Failed to initialize and seed database:', err);
   });
+

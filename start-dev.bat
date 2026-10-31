@@ -15,3 +15,4 @@ echo Application will be available at: http://localhost:3000
 echo Backend API available at: http://localhost:5000/api/health
 echo ========================================================
 pause
+

@@ -433,3 +433,4 @@ export const NewSubscriptionModal = ({ onClose, onSuccess, initialPlanId = null,
     </div>
   );
 };
+

@@ -134,3 +134,4 @@ export const validateDiscount = async (req, res) => {
     res.status(500).json({ error: 'Error validating coupon.' });
   }
 };
+

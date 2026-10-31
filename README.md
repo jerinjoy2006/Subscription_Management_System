@@ -131,3 +131,4 @@ npm run dev      # Running on http://localhost:3000
 5. **Closing Impact (30s)**:
    - Return to Admin: MRR and Total Revenue have automatically updated in real-time.
    - "SubscriptIQ turns chaotic manual billing into an automated recurring revenue engine responding in under 10 milliseconds."
+

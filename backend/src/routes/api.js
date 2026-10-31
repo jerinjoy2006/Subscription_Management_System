@@ -85,3 +85,4 @@ router.get('/analytics', authenticate, authorize(['admin', 'staff']), anCtrl.get
 router.post('/billing/run', authenticate, authorize(['admin', 'staff']), anCtrl.triggerBillingRun);
 
 export default router;
+

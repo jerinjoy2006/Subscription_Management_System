@@ -24,3 +24,4 @@ export const triggerBillingRun = async (req, res) => {
     res.status(500).json({ error: 'Failed to run recurring billing cycle.' });
   }
 };
+

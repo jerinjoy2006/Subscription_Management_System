@@ -221,3 +221,4 @@ export const PaymentModal = ({ invoice, onClose, onPaymentSuccess }) => {
     </div>
   );
 };
+

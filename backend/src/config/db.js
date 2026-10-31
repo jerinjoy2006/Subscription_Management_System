@@ -45,3 +45,4 @@ export const run = (sql, params = []) => {
 };
 
 export default db;
+

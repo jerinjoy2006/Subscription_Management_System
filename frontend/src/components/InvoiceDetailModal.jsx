@@ -251,3 +251,4 @@ export const InvoiceDetailModal = ({ invoiceId, onClose, onPayClick, onInvoiceUp
     </div>
   );
 };
+

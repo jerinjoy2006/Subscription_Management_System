@@ -103,3 +103,4 @@ export const recordPayment = async (req, res) => {
     res.status(500).json({ error: 'Failed to record payment.' });
   }
 };
+
