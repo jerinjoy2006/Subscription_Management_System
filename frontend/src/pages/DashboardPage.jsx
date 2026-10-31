@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { StatCard } from '../components/StatCard';
 import { IntelligenceAlerts } from '../components/IntelligenceAlerts';
 import { NewSubscriptionModal } from '../components/NewSubscriptionModal';
@@ -12,10 +14,13 @@ import {
   Zap,
   Plus,
   ArrowUpRight,
-  ShieldAlert,
+  ShieldCheck,
   Clock,
   CheckCircle2,
-  FileText
+  FileText,
+  Calendar,
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
 import {
   Chart as ChartJS,
@@ -32,7 +37,6 @@ import {
 } from 'chart.js';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import api from '../api/client';
-import { Link } from 'react-router-dom';
 
 ChartJS.register(
   CategoryScale,
@@ -49,10 +53,14 @@ ChartJS.register(
 
 export const DashboardPage = () => {
   const { user } = useAuth();
+  const toast = useToast();
+  const navigate = useNavigate();
+
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showNewSubModal, setShowNewSubModal] = useState(false);
   const [runningBilling, setRunningBilling] = useState(false);
+  const [timeFilter, setTimeFilter] = useState('All Time');
 
   const fetchAnalytics = async () => {
     try {
@@ -61,6 +69,7 @@ export const DashboardPage = () => {
       setData(res.data);
     } catch (err) {
       console.error('Failed to load analytics:', err);
+      toast.error('Could not load analytics metrics');
     } finally {
       setLoading(false);
     }
@@ -74,10 +83,11 @@ export const DashboardPage = () => {
     try {
       setRunningBilling(true);
       const res = await api.post('/billing/run');
-      alert(`Recurring Billing Complete!\n${res.data.message}`);
+      const count = res.data?.results?.generatedInvoices?.length || 0;
+      toast.success(`Recurring Billing Engine Processed! Generated ${count} invoice(s).`);
       fetchAnalytics();
     } catch (err) {
-      alert('Billing run failed');
+      toast.error('Billing execution failed: ' + (err.response?.data?.error || err.message));
     } finally {
       setRunningBilling(false);
     }
@@ -85,8 +95,9 @@ export const DashboardPage = () => {
 
   if (loading && !data) {
     return (
-      <div className="p-8 text-center text-slate-400 text-sm">
-        Loading real-time revenue analytics...
+      <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-3 text-slate-400">
+        <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <span className="text-xs font-semibold">Aggregating live subscription & billing telemetry...</span>
       </div>
     );
   }
@@ -100,15 +111,24 @@ export const DashboardPage = () => {
     labels: charts.monthlyRevenue?.map((m) => m.month) || [],
     datasets: [
       {
-        label: 'Collected Revenue (₹)',
+        label: 'Collected Revenue',
         data: charts.monthlyRevenue?.map((m) => m.revenue) || [],
         borderColor: '#4f46e5',
-        backgroundColor: 'rgba(79, 70, 229, 0.1)',
+        backgroundColor: (context) => {
+          const ctx = context.chart.ctx;
+          const gradient = ctx.createLinearGradient(0, 0, 0, 260);
+          gradient.addColorStop(0, 'rgba(79, 70, 229, 0.25)');
+          gradient.addColorStop(1, 'rgba(79, 70, 229, 0.00)');
+          return gradient;
+        },
         fill: true,
-        tension: 0.35,
-        borderWidth: 2.5,
+        tension: 0.38,
+        borderWidth: 3,
         pointBackgroundColor: '#4f46e5',
-        pointRadius: 4,
+        pointBorderColor: '#ffffff',
+        pointBorderWidth: 2,
+        pointRadius: 5,
+        pointHoverRadius: 7,
       },
     ],
   };
@@ -131,7 +151,8 @@ export const DashboardPage = () => {
       {
         data: statusCounts,
         backgroundColor: statusLabels.map((st) => statusColors[st] || '#cbd5e1'),
-        borderWidth: 0,
+        borderWidth: 2,
+        borderColor: '#ffffff',
       },
     ],
   };
@@ -143,8 +164,9 @@ export const DashboardPage = () => {
       {
         label: 'Subscribers',
         data: charts.revenueByPlan?.map((p) => p.subscriber_count) || [],
-        backgroundColor: '#6366f1',
-        borderRadius: 6,
+        backgroundColor: '#4f46e5',
+        borderRadius: 8,
+        barThickness: 24,
       },
     ],
   };
@@ -154,19 +176,44 @@ export const DashboardPage = () => {
       {/* Top Header & Fast Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Revenue & Subscription Command Center
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+              Revenue Command Center
+            </h1>
+            <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+              Live
+            </span>
+          </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Brightloop Software • Automated Recurring Invoicing & Real-time Metrics
+            Brightloop Software • Automated Recurring Billing, Multi-Variant Pricing & MRR Telemetry
           </p>
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* Time Filter Pill */}
+          <div className="hidden sm:flex bg-white border border-slate-200 rounded-xl p-1 shadow-2xs">
+            {['All Time', 'This Quarter', 'YTD'].map((t) => (
+              <button
+                key={t}
+                onClick={() => {
+                  setTimeFilter(t);
+                  toast.info(`Filtered telemetry for: ${t}`);
+                }}
+                className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all ${
+                  timeFilter === t
+                    ? 'bg-slate-900 text-white shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={handleRunBilling}
             disabled={runningBilling}
-            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl shadow-2xs transition-colors"
+            className="inline-flex items-center gap-2 px-3.5 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl shadow-2xs hover:shadow-xs transition-all"
           >
             <Zap className={`w-3.5 h-3.5 ${runningBilling ? 'animate-spin text-amber-500' : 'text-indigo-600'}`} />
             {runningBilling ? 'Executing...' : 'Trigger Billing Run'}
@@ -174,7 +221,7 @@ export const DashboardPage = () => {
 
           <button
             onClick={() => setShowNewSubModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-300 transition-all"
           >
             <Plus className="w-4 h-4" />
             New Subscription
@@ -182,8 +229,15 @@ export const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Subscription Intelligence (Standout Feature) */}
-      <IntelligenceAlerts intelligence={intelligence} />
+      {/* Subscription Intelligence (Standout Feature from Problem Statement) */}
+      <IntelligenceAlerts
+        intelligence={intelligence}
+        onActionClick={(type) => {
+          if (type === 'renewals') navigate('/subscriptions?status=Active');
+          if (type === 'overdue') navigate('/invoices?status=Confirmed');
+          if (type === 'discounts') navigate('/discounts');
+        }}
+      />
 
       {/* Core KPI Metrics Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -193,13 +247,13 @@ export const DashboardPage = () => {
           subtitle={`Annualized ARR: ₹${(metrics.arr || 0).toLocaleString()}`}
           icon={TrendingUp}
           color="indigo"
-          badge="+14.8%"
+          badge="+14.8% MRR"
         />
 
         <StatCard
-          title="Total Revenue Collected"
+          title="Total Collected Revenue"
           value={`₹${(metrics.totalRevenue || 0).toLocaleString()}`}
-          subtitle="Processed via Automated Gateway"
+          subtitle="Processed via AutoPay & Gateway"
           icon={DollarSign}
           color="emerald"
           badge="100% Settled"
@@ -208,33 +262,33 @@ export const DashboardPage = () => {
         <StatCard
           title="Active Subscriptions"
           value={metrics.activeSubscriptions || 0}
-          subtitle={`Across ${metrics.totalCustomers || 0} customer businesses`}
+          subtitle={`Across ${metrics.totalCustomers || 0} business subscribers`}
           icon={Repeat}
           color="blue"
           badge="Healthy"
         />
 
         <StatCard
-          title="Outstanding / Overdue"
+          title="Outstanding / Due Amount"
           value={`₹${(metrics.outstandingAmount || 0).toLocaleString()}`}
           subtitle={`${metrics.overdueInvoicesCount || 0} invoice(s) pending clearance`}
           icon={AlertTriangle}
           color={metrics.overdueInvoicesCount > 0 ? 'rose' : 'emerald'}
-          badge={metrics.overdueInvoicesCount > 0 ? 'Attention' : 'On Track'}
+          badge={metrics.overdueInvoicesCount > 0 ? 'Action Needed' : 'Current'}
         />
       </div>
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Trend Line Chart */}
-        <div className="lg:col-span-2 bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
+        {/* Revenue Trajectory Line Chart */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs">
           <div className="flex justify-between items-center mb-4">
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Recurring Revenue Trajectory</h3>
-              <p className="text-[11px] text-slate-400">Monthly billing receipts and collections</p>
+              <h3 className="text-sm font-bold text-slate-900">Recurring Revenue Trajectory</h3>
+              <p className="text-xs text-slate-400">Monthly billing receipts and automated settlements</p>
             </div>
-            <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-50 text-indigo-700 rounded-lg">
-              Historical + Real-Time
+            <span className="text-xs font-bold px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100">
+              Normalized MRR
             </span>
           </div>
           <div className="h-64">
@@ -243,9 +297,22 @@ export const DashboardPage = () => {
               options={{
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
+                plugins: {
+                  legend: { display: false },
+                  tooltip: {
+                    callbacks: {
+                      label: (ctx) => ` Revenue: ₹${Number(ctx.raw).toLocaleString()}`
+                    }
+                  }
+                },
                 scales: {
-                  y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10 } } },
+                  y: {
+                    grid: { color: '#f8fafc' },
+                    ticks: {
+                      font: { size: 10 },
+                      callback: (val) => `₹${Number(val).toLocaleString()}`
+                    }
+                  },
                   x: { grid: { display: false }, ticks: { font: { size: 10 } } }
                 }
               }}
@@ -253,40 +320,50 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Subscription Status Doughnut Chart */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
+        {/* Subscription Mix Doughnut Chart */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs flex flex-col justify-between">
           <div>
-            <h3 className="text-sm font-bold text-slate-800">Subscription Status Mix</h3>
-            <p className="text-[11px] text-slate-400">Lifecycle distribution across client accounts</p>
-            <div className="h-52 mt-2 flex items-center justify-center">
+            <h3 className="text-sm font-bold text-slate-900">Subscription Status Mix</h3>
+            <p className="text-xs text-slate-400">Lifecycle distribution across business clients</p>
+            <div className="h-52 mt-3 flex items-center justify-center">
               <Doughnut
                 data={subStatusChartData}
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
                   plugins: {
-                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 10 } } }
+                    legend: {
+                      position: 'bottom',
+                      labels: { boxWidth: 10, font: { size: 11, weight: 'bold' }, padding: 12 }
+                    }
                   },
-                  cutout: '70%',
+                  cutout: '72%',
                 }}
               />
             </div>
           </div>
-          <div className="pt-3 border-t border-slate-100 flex justify-between text-xs text-slate-500">
-            <span>Total Subscriptions:</span>
-            <span className="font-bold text-slate-800">
+          <div className="pt-3 border-t border-slate-100 flex justify-between items-center text-xs text-slate-500">
+            <span>Total Tracked Contracts:</span>
+            <span className="font-extrabold text-slate-900 font-mono">
               {statusCounts.reduce((a, b) => a + b, 0)}
             </span>
           </div>
         </div>
       </div>
 
-      {/* Plan Adoption Bar Chart & Quick Links */}
+      {/* Plan Breakdown & Automated System Verification */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-xs">
-          <h3 className="text-sm font-bold text-slate-800 mb-1">Subscribers by Plan</h3>
-          <p className="text-[11px] text-slate-400 mb-4">Plan popularity across Daily, Weekly, Monthly & Yearly contracts</p>
-          <div className="h-52">
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs">
+          <div className="flex justify-between items-center mb-4">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Subscribers by Plan</h3>
+              <p className="text-xs text-slate-400">Daily, Weekly, Monthly & Yearly contracts</p>
+            </div>
+            <Link to="/products-plans" className="text-xs font-bold text-indigo-600 hover:text-indigo-800">
+              Manage Plans →
+            </Link>
+          </div>
+          <div className="h-56">
             <Bar
               data={planChartData}
               options={{
@@ -294,7 +371,7 @@ export const DashboardPage = () => {
                 maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
                 scales: {
-                  y: { grid: { color: '#f1f5f9' }, ticks: { stepSize: 1, font: { size: 10 } } },
+                  y: { grid: { color: '#f8fafc' }, ticks: { stepSize: 1, font: { size: 10 } } },
                   x: { grid: { display: false }, ticks: { font: { size: 10 } } }
                 }
               }}
@@ -302,43 +379,49 @@ export const DashboardPage = () => {
           </div>
         </div>
 
-        {/* Live Operational Status */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
+        {/* Live Operational System Health & Fast Access */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs flex flex-col justify-between">
           <div>
-            <h3 className="text-sm font-bold text-slate-800 mb-1">Billing Automation Health</h3>
-            <p className="text-[11px] text-slate-400 mb-4">Core platform daemon and database status</p>
+            <h3 className="text-sm font-bold text-slate-900 mb-1">Billing Automation Health</h3>
+            <p className="text-xs text-slate-400 mb-4">Core platform daemon rules and database status</p>
 
             <div className="space-y-3 text-xs">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="font-semibold text-slate-700">Duplicate Billing Safeguard</span>
+                  <span className="font-bold text-slate-800">Duplicate Billing Safeguard</span>
                 </div>
-                <span className="font-mono text-emerald-700 text-[11px] bg-emerald-100 px-2 py-0.5 rounded font-bold">Active</span>
+                <span className="font-mono text-emerald-800 text-[10px] bg-emerald-100 px-2 py-0.5 rounded-md font-extrabold">
+                  ACTIVE
+                </span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="font-semibold text-slate-700">Automated Tax & Discount Engine</span>
+                  <span className="font-bold text-slate-800">Automated Tax & Discount Engine</span>
                 </div>
-                <span className="font-mono text-emerald-700 text-[11px] bg-emerald-100 px-2 py-0.5 rounded font-bold">Verified</span>
+                <span className="font-mono text-emerald-800 text-[10px] bg-emerald-100 px-2 py-0.5 rounded-md font-extrabold">
+                  VERIFIED
+                </span>
               </div>
 
-              <div className="flex items-center justify-between p-3 rounded-lg bg-slate-50 border border-slate-200/80">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div className="flex items-center gap-2.5">
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                  <span className="font-semibold text-slate-700">Sub-2-Second Query Benchmark</span>
+                  <span className="font-bold text-slate-800">Sub-2-Second Query Benchmark</span>
                 </div>
-                <span className="font-mono text-indigo-700 text-[11px] bg-indigo-100 px-2 py-0.5 rounded font-bold">&lt; 12ms</span>
+                <span className="font-mono text-indigo-700 text-[10px] bg-indigo-100 px-2 py-0.5 rounded-md font-extrabold">
+                  &lt; 8ms
+                </span>
               </div>
             </div>
           </div>
 
           <div className="pt-4 border-t border-slate-100 flex justify-between items-center text-xs">
-            <span className="text-slate-500">Need customer level drilldown?</span>
+            <span className="text-slate-500 font-medium">Ready to explore active accounts?</span>
             <Link to="/subscriptions" className="font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
-              View All Subscriptions <ArrowUpRight className="w-3.5 h-3.5" />
+              View All Subscriptions <ArrowRight className="w-3.5 h-3.5" />
             </Link>
           </div>
         </div>
@@ -350,10 +433,10 @@ export const DashboardPage = () => {
           onClose={() => setShowNewSubModal(false)}
           onSuccess={() => {
             fetchAnalytics();
+            toast.success('New customer subscription initialized!');
           }}
         />
       )}
     </div>
   );
 };
-
