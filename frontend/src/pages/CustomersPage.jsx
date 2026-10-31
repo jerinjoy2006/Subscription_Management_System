@@ -1,6 +1,16 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Users, Search, Building2, Mail, Phone, Repeat, Plus, X, Eye, FileText, CreditCard, ShieldCheck } from 'lucide-react';
 import api from '../api/client';
+const avatarColors = [
+  'from-indigo-500 to-indigo-400',
+  'from-emerald-500 to-emerald-400',
+  'from-amber-500 to-amber-400',
+  'from-rose-500 to-rose-400',
+  'from-purple-500 to-purple-400',
+];
+const getInitials = (name = '') =>
+  name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+const getAvatarColor = (id) => avatarColors[(id || 0) % avatarColors.length];
 
 export const CustomersPage = () => {
   const [customers, setCustomers] = useState([]);
@@ -151,8 +161,15 @@ export const CustomersPage = () => {
               filtered.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="py-3.5 px-4">
-                    <div className="font-bold text-slate-900 text-sm">{c.company_name || c.name}</div>
-                    <div className="text-slate-500 text-[11px]">Contact: {c.name}</div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-full bg-gradient-to-br ${getAvatarColor(c.id)} flex items-center justify-center text-white text-xs font-black shadow-sm shrink-0`}>
+                        {getInitials(c.company_name || c.name)}
+                      </div>
+                      <div>
+                        <div className="font-bold text-slate-900 text-sm">{c.company_name || c.name}</div>
+                        <div className="text-slate-500 text-[11px]">Contact: {c.name}</div>
+                      </div>
+                    </div>
                   </td>
                   <td className="py-3.5 px-4 space-y-0.5">
                     <div className="flex items-center gap-1.5 text-slate-600">

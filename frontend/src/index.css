@@ -27,6 +27,46 @@
   background: #94a3b8;
 }
 
+/* ── Animation utilities ─────────────────────────────────────────── */
+@keyframes slide-in-right {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+@keyframes slide-in-up {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+@keyframes scale-up {
+  from { transform: scale(0.95); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.animate-slide-in-right { animation: slide-in-right 0.25s ease-out both; }
+.animate-slide-in-up    { animation: slide-in-up    0.22s ease-out both; }
+.animate-scale-up       { animation: scale-up       0.20s ease-out both; }
+.animate-fade-in        { animation: fade-in        0.18s ease-out both; }
+
+/* ── Table row hover ─────────────────────────────────────────────── */
+tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+/* ── Modal backdrop ──────────────────────────────────────────────── */
+.modal-backdrop {
+  animation: fade-in 0.15s ease-out both;
+}
+.modal-panel {
+  animation: scale-up 0.20s ease-out both;
+}
+
+/* ── Focus ring upgrade ──────────────────────────────────────────── */
+input:focus, select:focus, textarea:focus {
+  outline: none;
+}
+
 @media print {
   body * {
     visibility: hidden;

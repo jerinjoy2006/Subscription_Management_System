@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -171,9 +171,36 @@ export const DashboardPage = () => {
     ],
   };
 
+    // Greeting helper
+  const getGreeting = () => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Good morning';
+    if (h < 17) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   return (
     <div className="space-y-6">
-      {/* Top Header & Fast Actions */}
+      {/* Personalised Greeting Banner */}
+      <div className="bg-gradient-to-r from-indigo-600 to-indigo-500 rounded-2xl px-6 py-4 flex items-center justify-between shadow-md shadow-indigo-200">
+        <div>
+          <p className="text-indigo-200 text-xs font-semibold tracking-wide">{getGreeting()},</p>
+          <h2 className="text-white text-lg font-black tracking-tight mt-0.5">
+            {user?.name?.split(' ')[0] || 'Team'} - Welcome!
+          </h2>
+          <p className="text-indigo-200 text-xs mt-0.5">Here is your live revenue snapshot for today.</p>
+        </div>
+        <div className="hidden sm:flex flex-col items-end gap-1.5">
+          <span className="text-white/90 text-xs font-bold font-mono">
+            {new Date().toLocaleDateString('en-IN', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
+          </span>
+          <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-white/20 text-white border border-white/30">
+            Live Telemetry
+          </span>
+        </div>
+      </div>
+
+            {/* Top Header & Fast Actions */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
