@@ -100,6 +100,10 @@ export const recordPayment = async (req, res) => {
     };
     const normalizedMethod = METHOD_MAP[String(payment_method).toLowerCase().trim()] || 'UPI';
 
+    const payNumber = await getNextSequenceNumber('PAY', 'payments', 'payment_number', 4);
+    const today = new Date().toISOString().split('T')[0];
+    const generatedRef = transaction_ref || `TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 8999 + 1000)}`;
+
     const payRes = await run(
       `INSERT INTO payments (
         payment_number, invoice_id, customer_id, amount, payment_method, payment_date, notes, status, transaction_ref
@@ -110,12 +114,6 @@ export const recordPayment = async (req, res) => {
         invoice.customer_id,
         paymentAmount,
         normalizedMethod,
-        today,
-        notes || `Payment for ${invoice.invoice_number}`,
-        generatedRef
-      ]
-    );
-        payment_method,
         today,
         notes || `Payment for ${invoice.invoice_number}`,
         generatedRef

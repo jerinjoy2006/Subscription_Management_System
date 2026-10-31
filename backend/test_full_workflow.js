@@ -176,7 +176,8 @@ async function runTests() {
         notes: 'Full annual enterprise advance settlement'
       }
     });
-    assert(payRes.status === 201 && payRes.data.paymentCode, `Recorded payment ${payRes.data.paymentCode} for ₹${payRes.data.amount}`);
+    const paymentNum = payRes.data.payment?.paymentNumber || payRes.data.paymentCode;
+    assert(payRes.status === 201 && paymentNum, `Recorded payment ${paymentNum} for ₹${payRes.data.payment?.amount}`);
 
     // 7. Verify Invoice and Subscription Statuses
     console.log('\n[7] Verify Post-Payment Status Updates');
@@ -184,7 +185,7 @@ async function runTests() {
       method: 'GET',
       headers: adminHeaders
     });
-    assert(singleInv.data.status === 'Paid', `Invoice ${initialInvoice.invoice_number} is now marked 'Paid'`);
+    assert(singleInv.data.invoice?.status === 'Paid', `Invoice ${initialInvoice.invoice_number} is now marked 'Paid'`);
 
     const singleSub = await request(`/subscriptions/${subId}`, {
       method: 'GET',

@@ -111,6 +111,12 @@ npm install
 npm run dev      # Running on http://localhost:3000
 ```
 
+**Run End-to-End Test Suite**:
+```bash
+cd backend
+npm test         # Executes 27-step automated end-to-end integration test suite
+```
+
 ---
 
 ## 🎬 3-Minute Presentation Demo Script for Judges

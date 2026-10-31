@@ -175,7 +175,8 @@ export const convertQuotationToSubscription = async (req, res) => {
     const startDate = new Date().toISOString().split('T')[0];
     const expiryDate = new Date();
     expiryDate.setFullYear(expiryDate.getFullYear() + 1); // 1 year default
-    const nextBilling = startDate;
+    const periodEnd = getNextBillingDate(startDate, plan.billing_interval);
+    const nextBilling = periodEnd;
 
     const subRes = await run(
       `INSERT INTO subscriptions (
@@ -209,7 +210,6 @@ export const convertQuotationToSubscription = async (req, res) => {
     }
 
     // Automatically generate the initial invoice for this confirmed subscription
-    const periodEnd = getNextBillingDate(startDate, plan.billing_interval);
     const invNumber = await getNextSequenceNumber('INV', 'invoices', 'invoice_number', 4);
 
     const invRes = await run(

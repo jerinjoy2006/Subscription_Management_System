@@ -185,6 +185,8 @@ export const createSubscription = async (req, res) => {
     const taxAmount = Math.round(taxableAmount * effectiveTaxRate * 100) / 100;
     const totalAmount = Math.max(0, Math.round((taxableAmount + taxAmount) * 100) / 100);
 
+    const periodEnd = getNextBillingDate(effectiveStart, effectiveInterval);
+
     const subRes = await run(
       `INSERT INTO subscriptions (
         subscription_number, customer_id, plan_id, status, billing_interval,
@@ -198,7 +200,7 @@ export const createSubscription = async (req, res) => {
         effectiveInterval,
         effectiveStart,
         expiry_date,
-        effectiveStart,
+        periodEnd,
         payment_terms,
         subtotal,
         taxAmount,
@@ -221,7 +223,6 @@ export const createSubscription = async (req, res) => {
     }
 
     // Automatically generate the initial invoice for immediate settlement
-    const periodEnd = getNextBillingDate(effectiveStart, effectiveInterval);
     const invNumber = await getNextSequenceNumber('INV', 'invoices', 'invoice_number', 4);
 
     let daysToAdd = 15;
